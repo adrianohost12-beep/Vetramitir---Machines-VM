@@ -1,57 +1,41 @@
-name: Windows Server 2024 - Tailscale
+name: Windows Server + Tailscale Setup
 
 on:
   workflow_dispatch:
 
 jobs:
-  windows-server:
-    runs-on: windows-2025
+  setup:
+    runs-on: windows-latest
 
     steps:
       - name: Install Tailscale
-        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -OutFile tailscale.msi
+          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet" -Wait
+
+      - name: Connect Tailscale
         env:
-          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
         run: |
-          Write-Host "Installing Tailscale..."
+          & "C:\Program Files\Tailscale IPN\tailscale.exe" up --authkey=$env:TS_AUTHKEY --hostname=WinServer2024
 
-          $installer = "$env:TEMP\tailscale-setup.exe"
-
-          Invoke-WebRequest `
-            -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" `
-            -OutFile $installer
-
-          Start-Process $installer -ArgumentList "/quiet" -Wait
-
-          Write-Host "Tailscale installation completed."
-
-      - name: Connect to Tailscale
-        shell: powershell
-        env:
-          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      - name: Create User + Show Info
         run: |
-          $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          $computerName = $env:COMPUTERNAME
 
-          & $tailscale up `
-            --auth-key="$env:TS_AUTHKEY" `
-            --hostname="Windows-Server-2024"
+          # pega IP do Tailscale
+          $tsIP = & "C:\Program Files\Tailscale IPN\tailscale.exe" ip -4
 
-          Start-Sleep -Seconds 5
+          # cria senha aleatória
+          $password = -join ((65..90 + 97..122 + 48..57) | Get-Random -Count 14 | ForEach-Object {[char]$_})
 
-      - name: Get Tailscale Information
-        shell: powershell
-        run: |
-          $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          $user = "RunnerMaty"
 
-          $hostname = (& $tailscale status --self=false 2>$null |
-            Select-String "Windows-Server-2024").Line
+          net user $user $password /add
 
-          $ip = (& $tailscale ip -4).Trim()
-
-          Write-Host ""
-          Write-Host "===================================="
-          Write-Host " WINDOWS SERVER 2024"
-          Write-Host "===================================="
-          Write-Host "Tailscale Name: Windows-Server-2024"
-          Write-Host "Tailscale IP:   $ip"
-          Write-Host "===================================="
+          Write-Output "=============================="
+          Write-Output "SERVER NAME: $computerName"
+          Write-Output "TAILSCALE IP: $tsIP"
+          Write-Output "USER: $user"
+          Write-Output "PASSWORD: $password"
+          Write-Output "=============================="
