@@ -1,54 +1,57 @@
-name: Windows Server 2022 - Tailscale
+name: Windows Server 2024 - Tailscale
 
 on:
   workflow_dispatch:
 
 jobs:
   windows-server:
-    name: Windows Server 2022 Tailscale Server
-    runs-on: windows-2022
-
-    permissions:
-      id-token: write
-      contents: read
+    runs-on: windows-2025
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Install Tailscale
+        shell: powershell
+        env:
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          Write-Host "Installing Tailscale..."
 
-      - name: Connect Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          audience: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:ci
+          $installer = "$env:TEMP\tailscale-setup.exe"
 
-      - name: Show Runner Information
+          Invoke-WebRequest `
+            -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" `
+            -OutFile $installer
+
+          Start-Process $installer -ArgumentList "/quiet" -Wait
+
+          Write-Host "Tailscale installation completed."
+
+      - name: Connect to Tailscale
+        shell: powershell
+        env:
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
+
+          & $tailscale up `
+            --auth-key="$env:TS_AUTHKEY" `
+            --hostname="Windows-Server-2024"
+
+          Start-Sleep -Seconds 5
+
+      - name: Get Tailscale Information
         shell: powershell
         run: |
-          Write-Host "====================================="
-          Write-Host " WINDOWS SERVER 2022 RUNNER"
-          Write-Host "====================================="
-          Write-Host "User: $env:USERNAME"
-          Write-Host "Computer: $env:COMPUTERNAME"
-          Write-Host "Runner OS: $env:RUNNER_OS"
-          Write-Host "Runner Name: $env:RUNNER_NAME"
-          Write-Host "Runner Architecture: $env:RUNNER_ARCH"
-          Write-Host "====================================="
+          $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
 
-      - name: Tailscale Status
-        shell: powershell
-        run: |
-          Write-Host "Tailscale Status:"
-          tailscale status
+          $hostname = (& $tailscale status --self=false 2>$null |
+            Select-String "Windows-Server-2024").Line
+
+          $ip = (& $tailscale ip -4).Trim()
 
           Write-Host ""
-          Write-Host "Tailscale IP:"
-          tailscale ip -4
-
-      - name: Test Server Connection
-        shell: powershell
-        run: |
-          Write-Host "Testing Tailscale..."
-          tailscale version
-          Write-Host "Server connection OK!"
+          Write-Host "===================================="
+          Write-Host " WINDOWS SERVER 2024"
+          Write-Host "===================================="
+          Write-Host "Tailscale Name: Windows-Server-2024"
+          Write-Host "Tailscale IP:   $ip"
+          Write-Host "===================================="
