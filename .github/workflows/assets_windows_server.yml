@@ -1,64 +1,54 @@
-name: Windows Server VM
+name: Windows Server 2022 - Tailscale
 
 on:
   workflow_dispatch:
 
 jobs:
-  setup:
-    runs-on: self-hosted
-    steps:
+  windows-server:
+    name: Windows Server 2022 Tailscale Server
+    runs-on: windows-2022
 
-      - name: Show Runner
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+
+      - name: Show Runner Information
         shell: powershell
         run: |
-          Write-Host "===== WINDOWS SERVER ====="
+          Write-Host "====================================="
+          Write-Host " WINDOWS SERVER 2022 RUNNER"
+          Write-Host "====================================="
           Write-Host "User: $env:USERNAME"
           Write-Host "Computer: $env:COMPUTERNAME"
-          Write-Host "Runner: $env:RUNNER_NAME"
-          Write-Host "OS: $env:RUNNER_OS"
+          Write-Host "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner Name: $env:RUNNER_NAME"
+          Write-Host "Runner Architecture: $env:RUNNER_ARCH"
+          Write-Host "====================================="
 
-      - name: Create RunnerMaty User
+      - name: Tailscale Status
         shell: powershell
         run: |
-          $Password = ConvertTo-SecureString `
-            "${{ secrets.WINDOWS_PASSWORD }}" `
-            -AsPlainText -Force
+          Write-Host "Tailscale Status:"
+          tailscale status
 
-          if (-not (Get-LocalUser -Name "RunnerMaty" -ErrorAction SilentlyContinue)) {
-              New-LocalUser `
-                -Name "RunnerMaty" `
-                -Password $Password `
-                -FullName "RunnerMaty"
-          }
+          Write-Host ""
+          Write-Host "Tailscale IP:"
+          tailscale ip -4
 
-          Add-LocalGroupMember `
-            -Group "Administrators" `
-            -Member "RunnerMaty"
-
-      - name: Install Firefox
+      - name: Test Server Connection
         shell: powershell
         run: |
-          winget install `
-            --id Mozilla.Firefox `
-            --exact `
-            --silent `
-            --accept-package-agreements `
-            --accept-source-agreements
-
-      - name: Show Disk
-        shell: powershell
-        run: |
-          Get-Volume |
-            Where-Object DriveLetter |
-            Select-Object DriveLetter,
-              FileSystemLabel,
-              SizeRemaining,
-              Size
-
-      - name: Show RDP Information
-        shell: powershell
-        run: |
-          Write-Host "===== RDP SERVER ====="
-          Write-Host "User: RunnerMaty"
-          Write-Host "Computer: $env:COMPUTERNAME"
-          Write-Host "RDP Port: 3389"
+          Write-Host "Testing Tailscale..."
+          tailscale version
+          Write-Host "Server connection OK!"
