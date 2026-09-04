@@ -1,0 +1,64 @@
+name: Windows Server VM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: self-hosted
+    steps:
+
+      - name: Show Runner
+        shell: powershell
+        run: |
+          Write-Host "===== WINDOWS SERVER ====="
+          Write-Host "User: $env:USERNAME"
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "Runner: $env:RUNNER_NAME"
+          Write-Host "OS: $env:RUNNER_OS"
+
+      - name: Create RunnerMaty User
+        shell: powershell
+        run: |
+          $Password = ConvertTo-SecureString `
+            "${{ secrets.WINDOWS_PASSWORD }}" `
+            -AsPlainText -Force
+
+          if (-not (Get-LocalUser -Name "RunnerMaty" -ErrorAction SilentlyContinue)) {
+              New-LocalUser `
+                -Name "RunnerMaty" `
+                -Password $Password `
+                -FullName "RunnerMaty"
+          }
+
+          Add-LocalGroupMember `
+            -Group "Administrators" `
+            -Member "RunnerMaty"
+
+      - name: Install Firefox
+        shell: powershell
+        run: |
+          winget install `
+            --id Mozilla.Firefox `
+            --exact `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements
+
+      - name: Show Disk
+        shell: powershell
+        run: |
+          Get-Volume |
+            Where-Object DriveLetter |
+            Select-Object DriveLetter,
+              FileSystemLabel,
+              SizeRemaining,
+              Size
+
+      - name: Show RDP Information
+        shell: powershell
+        run: |
+          Write-Host "===== RDP SERVER ====="
+          Write-Host "User: RunnerMaty"
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "RDP Port: 3389"
